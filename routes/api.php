@@ -5,6 +5,8 @@ use App\Http\Controllers\Api\ClientTypeController;
 use App\Http\Controllers\Api\CountryController;
 use App\Http\Controllers\Api\CurrencyController;
 use App\Http\Controllers\Api\HospitalController;
+use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\ProductPackageController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -29,4 +31,6 @@ Route::middleware('auth:sanctum')->group(function () {
     //Hospital
     Route::resource('/hospitals', HospitalController::class);
     Route::resource('/currencies', CurrencyController::class);
+    Route::resource('/products', ProductController::class);
+    Route::resource('/packages', ProductPackageController::class);
 });

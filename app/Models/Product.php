@@ -25,4 +25,9 @@ class Product extends Model
     {
         return $this->belongsTo(Currency::class, 'currency_id');
     }
+
+    public function package()
+    {
+        return $this->hasMany(ProductPackage::class, 'product_id');
+    }
 }

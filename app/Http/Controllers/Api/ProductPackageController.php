@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Product;
+use App\Models\ProductPackage;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
-class ProductController extends Controller
+class ProductPackageController extends Controller
 {
     /**
      * Display a listing of the resource.
@@ -16,10 +16,10 @@ class ProductController extends Controller
     public function index()
     {
         try {
-            $products = Product::with('currency', 'package')->get();
+            $packages = ProductPackage::with('product')->get();
 
             return response()->json([
-                'data' => $products
+                'data' => $packages
             ], 200);
 
         } catch (Exception $ex) {
@@ -44,29 +44,29 @@ class ProductController extends Controller
     {
         try {
             $request->validate([
-                'currency_id' => 'required|exists:currencies,id',
-                'name' => 'required|string',
-                'cost' => 'nullable',
-                'price' => 'nullable',
-                'image' => 'required|image|mimes:jpg,jpeg,png,svg|max:2048',
-                'description' => 'required|string'
+                'product_id' => 'required|exists:products,id',
+                'name' => 'required|string|max:255',
+                'total' => 'nullable',
+                'discount' => 'nullable',
+                'description' => 'required|string',
+                'image' => 'required|image|mimes:jpg,jpeg,png,svg|max:2048'
             ]);
 
             if ($request->hasFile('image')) {
-                $imagePath = $request->file('image')->store('products', 'public');
+                $imagePath = $request->file('image')->store('packages', 'public');
             }
 
-            $product = Product::create([
-                'currency_id' => $request->input('currency_id'),
-                'name' => $request->input('currency'),
-                'cost' => $request->input('cost'),
-                'price' => $request->input('price'),
+            $package = ProductPackage::create([
+                'product_id' => $request->input('product_id'),
+                'name' => $request->input('name'),
+                'total' => $request->input('total'),
+                'discount' => $request->input('discount'),
                 'description' => $request->input('description'),
-                'image' => $imagePath ?? null,
+                'image' => $imagePath
             ]);
 
             return response()->json([
-                'data' => $product
+                'data' => $package
             ], 201);
 
         } catch (Exception $ex) {
@@ -82,17 +82,17 @@ class ProductController extends Controller
     public function show(string $id)
     {
         try {
-            $product = Product::with('currency', 'package')->where('id', $id)->first();
+            $package = ProductPackage::with('product')->where('id', $id)->first();
 
             return response()->json([
-                'data' => $product
+                'data' => $package
             ], 200);
 
         } catch (Exception $ex) {
             return response()->json([
                 'error' => $ex->getMessage()
             ], 500);
-        }
+        } 
     }
 
     /**
@@ -109,32 +109,30 @@ class ProductController extends Controller
     public function update(Request $request, string $id)
     {
         try {
-
             $validatedData = $request->validate([
-                'currency_id' => 'required|exists:currencies,id',
-                'name' => 'required|string',
-                'cost' => 'nullable',
-                'price' => 'nullable',
-                'image' => 'nullable|image|mimes:jpg,jpeg,png,svg|max:2048',
-                'description' => 'required|string'
+                'product_id' => 'required|exists:products,id',
+                'name' => 'required|string|max:255',
+                'total' => 'nullable',
+                'discount' => 'nullable',
+                'description' => 'required|string',
+                'image' => 'required|image|mimes:jpg,jpeg,png,svg|max:2048'
             ]);
 
-            $product = Product::findOrFail($id);
+            $package = ProductPackage::findOrFail($id);
 
             if ($request->hasFile('image')) {
-
-                if ($product->image && Storage::disk('public')->exists($product->image)) {
-                    Storage::disk('public')->delete($product->image);
+                if ($package->image && Storage::disk('public')->exists($package->image)) {
+                    Storage::disk('public')->delete($package->image);
                 }
 
-                $imagePath = $request->file('image')->store('products', 'public');
+                $imagePath = $request->file('image')->store('packages', 'public');
                 $validatedData['image'] = $imagePath;
             }
 
-            $product->update($validatedData);
+            $package->update($validatedData);
 
             return response()->json([
-                'data' => $product
+                'data' => $package
             ], 200);
 
         } catch (Exception $ex) {
@@ -150,11 +148,11 @@ class ProductController extends Controller
     public function destroy(string $id)
     {
         try {
-            $product = Product::findOrFail($id);
-            $product->delete();
+            $package = ProductPackage::findOrFail($id);
+            $package->delete();
 
             return response()->json([
-                'message' => 'Product Deleted!'
+                'message' => 'Product Package Deleted!'
             ], 200);
 
         } catch (Exception $ex) {
