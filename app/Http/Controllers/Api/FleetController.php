@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Product;
+use App\Models\Fleet;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
-class ProductController extends Controller
+class FleetController extends Controller
 {
     /**
      * Display a listing of the resource.
@@ -16,10 +16,10 @@ class ProductController extends Controller
     public function index()
     {
         try {
-            $products = Product::with('currency', 'package')->get();
+            $fleets = Fleet::with('country')->get();
 
             return response()->json([
-                'data' => $products
+                'data' => $fleets
             ], 200);
 
         } catch (Exception $ex) {
@@ -43,31 +43,32 @@ class ProductController extends Controller
     public function store(Request $request)
     {
         try {
+
             $request->validate([
-                'currency_id' => 'required|exists:currencies,id',
-                'name' => 'required|string',
-                'cost' => 'nullable',
-                'price' => 'nullable',
-                'image' => 'required|image|mimes:jpg,jpeg,png,svg|max:2048',
+                'country_id' => 'required|exists:countries,id',
+                'name' => 'required|string|max:255',
+                'capacity' => 'required|numeric',
+                'classification' => 'required',
+                'icon' => 'required|image|mimes:jpg,jpeg,png,svg|max:2048',
                 'description' => 'required|string'
             ]);
 
-            if ($request->hasFile('image')) {
-                $imagePath = $request->file('image')->store('products', 'public');
+            if ($request->hasFile('icon')) {
+                $iconPath = $request->file('icon')->store('fleets', 'public');
             }
 
-            $product = Product::create([
-                'currency_id' => $request->input('currency_id'),
+            $fleet = Fleet::create([
+                'country_id' => $request->input('country_id'),
                 'name' => $request->input('name'),
-                'cost' => $request->input('cost'),
-                'price' => $request->input('price'),
-                'description' => $request->input('description'),
-                'image' => $imagePath ?? null,
+                'capacity' => $request->input('capacity'),
+                'classification' => $request->input('classification'),
+                'icon' => $iconPath ?? null,
+                'description' => $request->input('description')
             ]);
 
             return response()->json([
-                'data' => $product
-            ], 201);
+                'data' => $fleet
+            ], 200);
 
         } catch (Exception $ex) {
             return response()->json([
@@ -82,10 +83,10 @@ class ProductController extends Controller
     public function show(string $id)
     {
         try {
-            $product = Product::with('currency', 'package')->where('id', $id)->first();
+            $fleet = Fleet::with('country')->where('id', $id)->first();
 
             return response()->json([
-                'data' => $product
+                'data' => $fleet
             ], 200);
 
         } catch (Exception $ex) {
@@ -109,32 +110,31 @@ class ProductController extends Controller
     public function update(Request $request, string $id)
     {
         try {
-
             $validatedData = $request->validate([
-                'currency_id' => 'required|exists:currencies,id',
-                'name' => 'required|string',
-                'cost' => 'nullable',
-                'price' => 'nullable',
-                'image' => 'nullable|image|mimes:jpg,jpeg,png,svg|max:2048',
+                'country_id' => 'required|exists:countries,id',
+                'name' => 'required|string|max:255',
+                'capacity' => 'required',
+                'classification' => 'required',
+                'icon' => 'nullable|image|mimes:jpg,jpeg,png,svg|max:2048',
                 'description' => 'required|string'
             ]);
 
-            $product = Product::findOrFail($id);
+            $fleet = Fleet::findOrFail($id);
 
-            if ($request->hasFile('image')) {
+            if ($request->hasFile('icon')) {
 
-                if ($product->image && Storage::disk('public')->exists($product->image)) {
-                    Storage::disk('public')->delete($product->image);
+                if ($fleet->icon && Storage::disk('public')->exists($fleet->icon)) {
+                    Storage::disk('public')->delete($fleet->icon);
                 }
 
-                $imagePath = $request->file('image')->store('products', 'public');
-                $validatedData['image'] = $imagePath;
+                $iconPath = $request->file('icon')->store('fleets', 'public');
+                $validatedData['icon'] = $iconPath;
             }
 
-            $product->update($validatedData);
+            $fleet->update($validatedData);
 
             return response()->json([
-                'data' => $product
+                'data' => $fleet
             ], 200);
 
         } catch (Exception $ex) {
@@ -150,12 +150,12 @@ class ProductController extends Controller
     public function destroy(string $id)
     {
         try {
-            $product = Product::findOrFail($id);
-            $product->delete();
+            $fleet = Fleet::findOrFail($id);
+            $fleet->delete();
 
             return response()->json([
-                'message' => 'Product Deleted!'
-            ], 200);
+                'message' => 'Fleet deleted !'
+            ]);
 
         } catch (Exception $ex) {
             return response()->json([

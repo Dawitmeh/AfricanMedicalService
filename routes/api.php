@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientTypeController;
 use App\Http\Controllers\Api\CountryController;
 use App\Http\Controllers\Api\CurrencyController;
+use App\Http\Controllers\Api\FleetController;
 use App\Http\Controllers\Api\HospitalController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ProductPackageController;
@@ -30,7 +31,18 @@ Route::middleware('auth:sanctum')->group(function () {
 
     //Hospital
     Route::resource('/hospitals', HospitalController::class);
+
+    // currency
     Route::resource('/currencies', CurrencyController::class);
+
+    // Services (products, packages)
+    // products
     Route::resource('/products', ProductController::class);
+
+    // packages
     Route::resource('/packages', ProductPackageController::class);
+
+    // Fleets
+    Route::resource('/fleets', FleetController::class);
+
 });
