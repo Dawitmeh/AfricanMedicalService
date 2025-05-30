@@ -22,7 +22,7 @@ class AuthController extends Controller
                 'email' => 'required|string|email|max:255|unique:clients',
                 'phone' => 'required|max:15|unique:clients',
                 'password' => 'required|string|confirmed',
-                'type_id' => 'required|exists:client_types,id',
+                'type_id' => 'nullable|exists:client_types,id',
                 'age' => 'required',
                 'country_code' => 'required',
 
@@ -44,6 +44,7 @@ class AuthController extends Controller
                 'name' => $request->first_name,
                 'email' => $request->email,
                 'phone' => $phone,
+                'userType' => 'client',
                 'password' => Hash::make($request->password)
             ]);
 
