@@ -18,6 +18,12 @@ class CountryController extends Controller
         try {
             $countries = Country::all();
 
+            // Append full URL for flag
+            $countries->transform(function ($country) {
+                $country->flag = asset('storage/' . $country->flag);
+                return $country;
+            });
+
             return response()->json([
                 'data' => $countries
             ], 200);
@@ -80,6 +86,15 @@ class CountryController extends Controller
     {
         try {
             $country = Country::where('id', $id)->first();
+
+            if (!$country) {
+                return response()->json([
+                    'error' => 'Country not found'
+                ], 404);
+            }
+
+            // Add full asset 
+            $country->flag = asset('storage/' . $country->flag);
 
             return response()->json([
                 'data' => $country

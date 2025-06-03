@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use App\Models\Hospital;
 use Exception;
+use App\Models\Hospital;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 
 class HospitalController extends Controller
@@ -18,6 +20,10 @@ class HospitalController extends Controller
         try {
             $hospitals = Hospital::with('country')->orderByDesc('created_at')->get();
 
+            $hospitals->transform(function ($hospital) {
+                $hospital->image = asset('storage/' . $hospital->image);
+                return $hospital;
+            });
 
             return response()->json([
                 'data' => $hospitals
@@ -45,24 +51,29 @@ class HospitalController extends Controller
     public function store(Request $request)
     {
         try {   
-            $request->validate([
+            $data = $request->validate([
                 'country_id' => 'required|exists:countries,id',
                 'name' => 'required|string',
                 'location' => 'required',
                 'description' => 'required',
-                'image' => 'required|image|mimes:jpg,jpeg,png,svg|max:2048'
+                'image' => 'required|string'
             ]);
 
-            if ($request->hasFile('image')) {
-                $imagePath = $request->file('image')->store('hospitals', 'public');
+            // if ($request->hasFile('image')) {
+            //     $imagePath = $request->file('image')->store('hospitals', 'public');
+            // }
+            // check if image given and save on local file system
+            if (isset($data['image'])) {
+                $relativePath = $this->saveImage($data['image']);
+                $data['image'] = $relativePath;
             }
 
             $hospital = Hospital::create([
-                'country_id' => $request->input('country_id'),
-                'name' => $request->input('name'),
+                'country_id' => $data['country_id'],
+                'name' => $data['name'],
                 'location' => $request->input('location'),
                 'description' => $request->input('description'),
-                'image' => $imagePath ?? null,
+                'image' => $data['image']
             ]);
 
             return response()->json([
@@ -83,6 +94,14 @@ class HospitalController extends Controller
     {
         try {
             $hospital = Hospital::with('country')->where('id', $id)->first();
+
+            if (!$hospital) {
+                return response()->json([
+                    'error' => 'Hospital not found'
+                ], 404);
+            }
+
+            $hospital->image = asset('storage/' . $hospital->image);
 
             return response()->json([
                 'data' => $hospital
@@ -115,21 +134,21 @@ class HospitalController extends Controller
                 'name' => 'required|string',
                 'location' => 'required',
                 'description' => 'required',
-                'image' => 'nullable|image|mimes:jpg,jpeg,png,svg|max:2048'
+                'image' => 'nullable|string'
             ]);
 
             $hospital = Hospital::findOrFail($id);
 
-            // Handle image
-            if ($request->hasFile('image')) {
-                // Remove the old image
-                if ($hospital->image && Storage::disk('public')->exists($hospital->image)) {
-                    Storage::disk('public')->delete($hospital->image);
-                }
+            
+            if (isset($validatedData['image'])) {
+                $relativePath = $this->saveImage($validatedData['image']);
+                $validatedData['image'] = $relativePath;
 
-                // Store the new image
-                $imagePath = $request->file('image')->store('hospitals', 'public');
-                $validatedData['image'] = $imagePath;
+                // if there is an old image, delete it
+                if ($hospital->image) {
+                    $absolutePath = public_path($hospital->image);
+                    File::delete($absolutePath);
+                }
             }
 
             $hospital->update($validatedData);
@@ -163,5 +182,45 @@ class HospitalController extends Controller
                 'error' => $ex->getMessage()
             ], 500);
         }
+    }
+
+    private function saveImage($image) 
+    {
+        // check if image is valid base64 string
+        if (preg_match('/^data:image\/(\w+);base64,/', $image, $type)) {
+
+            $image = substr($image, strpos($image, ',') + 1);
+
+            // get file extension
+            $type = strtolower($type[1]); // jpg, png, gif
+
+            // check if file is an image
+            if (!in_array($type, ['jpg', 'jpeg', 'gif', 'png'])) {
+                throw new \Exception(('invalid image type'));
+            }
+            $image = str_replace(' ', '+', $image);
+            $image = base64_decode($image);
+
+            if ($image === false) {
+                throw new \Exception('base64_decode failed');
+            }
+        } else {
+            throw new \Exception('did not match data URI with image data');
+        }
+        
+        // correct path: storage/app/public/hospitals
+        $fileName = Str::random() . '.' . $type;
+        $relativePath = 'hospitals/' . $fileName;
+        $storagePath = storage_path('app/public/' . $relativePath);
+
+        // make sure the directory exists
+        if (!File::exists(dirname($storagePath))) {
+            File::makeDirectory(dirname($storagePath), 0755, true);
+        }
+
+        file_put_contents($storagePath, $image);
+
+        // return 'storage/' . $relativePath;
+        return $relativePath;
     }
 }

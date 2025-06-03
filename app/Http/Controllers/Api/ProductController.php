@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use App\Models\Product;
 use Exception;
+use App\Models\Product;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
@@ -17,6 +19,11 @@ class ProductController extends Controller
     {
         try {
             $products = Product::with('currency', 'package')->get();
+
+            $products->transform(function ($product) {
+                $product->image = asset('storage/' . $product->image);
+                return $product;
+            }); 
 
             return response()->json([
                 'data' => $products
@@ -43,17 +50,18 @@ class ProductController extends Controller
     public function store(Request $request)
     {
         try {
-            $request->validate([
+            $data = $request->validate([
                 'currency_id' => 'required|exists:currencies,id',
                 'name' => 'required|string',
                 'cost' => 'nullable',
                 'price' => 'nullable',
-                'image' => 'required|image|mimes:jpg,jpeg,png,svg|max:2048',
+                'image' => 'required|string',
                 'description' => 'required|string'
             ]);
 
-            if ($request->hasFile('image')) {
-                $imagePath = $request->file('image')->store('products', 'public');
+            if (isset($data['image'])) {
+                $relativePath = $this->saveImage($data['image']);
+                $data['image'] = $relativePath;
             }
 
             $product = Product::create([
@@ -62,7 +70,7 @@ class ProductController extends Controller
                 'cost' => $request->input('cost'),
                 'price' => $request->input('price'),
                 'description' => $request->input('description'),
-                'image' => $imagePath ?? null,
+                'image' => $data['image'],
             ]);
 
             return response()->json([
@@ -83,6 +91,14 @@ class ProductController extends Controller
     {
         try {
             $product = Product::with('currency', 'package')->where('id', $id)->first();
+
+            if (!$product) {
+                return response()->json([
+                    'error' => 'Product not found'
+                ], 404);
+            }
+
+            $product->image = asset('storage/' . $product->image);
 
             return response()->json([
                 'data' => $product
@@ -115,20 +131,20 @@ class ProductController extends Controller
                 'name' => 'required|string',
                 'cost' => 'nullable',
                 'price' => 'nullable',
-                'image' => 'nullable|image|mimes:jpg,jpeg,png,svg|max:2048',
+                'image' => 'nullable|string',
                 'description' => 'required|string'
             ]);
 
             $product = Product::findOrFail($id);
 
-            if ($request->hasFile('image')) {
+            if (isset($validatedData['image'])) {
+                $relativePath = $this->saveImage($validatedData['image']);
+                $validatedData['image'] = $relativePath;
 
-                if ($product->image && Storage::disk('public')->exists($product->image)) {
-                    Storage::disk('public')->delete($product->image);
+                if ($product->image) {
+                    $absolutePath = public_path($product->image);
+                    File::delete($absolutePath);
                 }
-
-                $imagePath = $request->file('image')->store('products', 'public');
-                $validatedData['image'] = $imagePath;
             }
 
             $product->update($validatedData);
@@ -162,5 +178,45 @@ class ProductController extends Controller
                 'error' => $ex->getMessage()
             ], 500);
         }
+    }
+
+    private function saveImage($image) 
+    {
+        // check if image is valid base64 string
+        if (preg_match('/^data:image\/(\w+);base64,/', $image, $type)) {
+
+            $image = substr($image, strpos($image, ',') + 1);
+
+            // get file extension
+            $type = strtolower($type[1]); // jpg, png, gif
+
+            // check if file is an image
+            if (!in_array($type, ['jpg', 'jpeg', 'gif', 'png'])) {
+                throw new \Exception(('invalid image type'));
+            }
+            $image = str_replace(' ', '+', $image);
+            $image = base64_decode($image);
+
+            if ($image === false) {
+                throw new \Exception('base64_decode failed');
+            }
+        } else {
+            throw new \Exception('did not match data URI with image data');
+        }
+        
+        // correct path: storage/app/public/hospitals
+        $fileName = Str::random() . '.' . $type;
+        $relativePath = 'products/' . $fileName;
+        $storagePath = storage_path('app/public/' . $relativePath);
+
+        // make sure the directory exists
+        if (!File::exists(dirname($storagePath))) {
+            File::makeDirectory(dirname($storagePath), 0755, true);
+        }
+
+        file_put_contents($storagePath, $image);
+
+        // return 'storage/' . $relativePath;
+        return $relativePath;
     }
 }
