@@ -1,13 +1,17 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\ClientTypeController;
 use App\Http\Controllers\Api\CountryController;
 use App\Http\Controllers\Api\CurrencyController;
+use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\FleetController;
 use App\Http\Controllers\Api\HospitalController;
+use App\Http\Controllers\Api\InquiryController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ProductPackageController;
+use App\Http\Controllers\Api\StaffController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -44,5 +48,17 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Fleets
     Route::resource('/fleets', FleetController::class);
+
+    // Clients
+    Route::resource('/clients', ClientController::class);
+
+    // Staffs
+    Route::resource('/staffs', StaffController::class);
+
+    // Documents
+    Route::resource('/documents', DocumentController::class);
+
+    // Inquiry
+    Route::resource('/inquiries', InquiryController::class);
 
 });

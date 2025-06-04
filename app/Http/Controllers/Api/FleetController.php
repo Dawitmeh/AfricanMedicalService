@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use App\Models\Fleet;
 use Exception;
+use App\Models\Fleet;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 
 class FleetController extends Controller
@@ -17,6 +19,11 @@ class FleetController extends Controller
     {
         try {
             $fleets = Fleet::with('country')->get();
+
+            $fleets->transform(function ($fleet) {
+                $fleet->icon = asset('storage/' . $fleet->icon);
+                return $fleet;
+            });
 
             return response()->json([
                 'data' => $fleets
@@ -44,17 +51,18 @@ class FleetController extends Controller
     {
         try {
 
-            $request->validate([
+            $data = $request->validate([
                 'country_id' => 'required|exists:countries,id',
                 'name' => 'required|string|max:255',
                 'capacity' => 'required|numeric',
                 'classification' => 'required',
-                'icon' => 'required|image|mimes:jpg,jpeg,png,svg|max:2048',
+                'icon' => 'required|string',
                 'description' => 'required|string'
             ]);
 
-            if ($request->hasFile('icon')) {
-                $iconPath = $request->file('icon')->store('fleets', 'public');
+            if (isset($data['icon'])) {
+                $relativePath = $this->saveImage($data['icon']);
+                $data['icon'] = $relativePath;
             }
 
             $fleet = Fleet::create([
@@ -62,8 +70,10 @@ class FleetController extends Controller
                 'name' => $request->input('name'),
                 'capacity' => $request->input('capacity'),
                 'classification' => $request->input('classification'),
-                'icon' => $iconPath ?? null,
-                'description' => $request->input('description')
+                'icon' => $data['icon'],
+                'description' => $request->input('description'),
+                'Available' => $request->input('Available'),
+                'Active' => $request->input('Active')
             ]);
 
             return response()->json([
@@ -84,6 +94,14 @@ class FleetController extends Controller
     {
         try {
             $fleet = Fleet::with('country')->where('id', $id)->first();
+
+            if (!$fleet) {
+                return response()->json([
+                    'error' => 'Fleet not found'
+                ], 404);
+            }
+
+            $fleet->icon = asset('storage/' . $fleet->icon);
 
             return response()->json([
                 'data' => $fleet
@@ -115,20 +133,20 @@ class FleetController extends Controller
                 'name' => 'required|string|max:255',
                 'capacity' => 'required',
                 'classification' => 'required',
-                'icon' => 'nullable|image|mimes:jpg,jpeg,png,svg|max:2048',
+                'icon' => 'nullable|string',
                 'description' => 'required|string'
             ]);
 
             $fleet = Fleet::findOrFail($id);
 
-            if ($request->hasFile('icon')) {
+            if (isset($validatedData['icon'])) {
+                $relativePath = $this->saveImage($validatedData['icon']);
+                $validatedData['icon'] = $relativePath;
 
-                if ($fleet->icon && Storage::disk('public')->exists($fleet->icon)) {
-                    Storage::disk('public')->delete($fleet->icon);
+                if ($fleet->icon) {
+                    $absolutePath = public_path($fleet->icon);
+                    File::delete($absolutePath);
                 }
-
-                $iconPath = $request->file('icon')->store('fleets', 'public');
-                $validatedData['icon'] = $iconPath;
             }
 
             $fleet->update($validatedData);
@@ -162,5 +180,45 @@ class FleetController extends Controller
                 'error' => $ex->getMessage()
             ], 500);
         }
+    }
+
+    private function saveImage($image) 
+    {
+        // check if image is valid base64 string
+        if (preg_match('/^data:image\/(\w+);base64,/', $image, $type)) {
+
+            $image = substr($image, strpos($image, ',') + 1);
+
+            // get file extension
+            $type = strtolower($type[1]); // jpg, png, gif
+
+            // check if file is an image
+            if (!in_array($type, ['jpg', 'jpeg', 'gif', 'png'])) {
+                throw new \Exception(('invalid image type'));
+            }
+            $image = str_replace(' ', '+', $image);
+            $image = base64_decode($image);
+
+            if ($image === false) {
+                throw new \Exception('base64_decode failed');
+            }
+        } else {
+            throw new \Exception('did not match data URI with image data');
+        }
+        
+        // correct path: storage/app/public/hospitals
+        $fileName = Str::random() . '.' . $type;
+        $relativePath = 'fleets/' . $fileName;
+        $storagePath = storage_path('app/public/' . $relativePath);
+
+        // make sure the directory exists
+        if (!File::exists(dirname($storagePath))) {
+            File::makeDirectory(dirname($storagePath), 0755, true);
+        }
+
+        file_put_contents($storagePath, $image);
+
+        // return 'storage/' . $relativePath;
+        return $relativePath;
     }
 }

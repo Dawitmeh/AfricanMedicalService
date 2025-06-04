@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use App\Models\ProductPackage;
 use Exception;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use App\Models\ProductPackage;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 
 class ProductPackageController extends Controller
@@ -17,6 +19,11 @@ class ProductPackageController extends Controller
     {
         try {
             $packages = ProductPackage::with('product')->get();
+
+            $packages->transform(function ($package) {
+                $package->image = asset('storage/' . $package->image);
+                return $package;
+            });
 
             return response()->json([
                 'data' => $packages
@@ -43,17 +50,18 @@ class ProductPackageController extends Controller
     public function store(Request $request)
     {
         try {
-            $request->validate([
+            $data = $request->validate([
                 'product_id' => 'required|exists:products,id',
                 'name' => 'required|string|max:255',
                 'total' => 'nullable',
                 'discount' => 'nullable',
                 'description' => 'required|string',
-                'image' => 'required|image|mimes:jpg,jpeg,png,svg|max:2048'
+                'image' => 'required|string'
             ]);
 
-            if ($request->hasFile('image')) {
-                $imagePath = $request->file('image')->store('packages', 'public');
+            if (isset($data['image'])) {
+                $relativePath = $this->saveImage($data['image']);
+                $data['image'] = $relativePath;
             }
 
             $package = ProductPackage::create([
@@ -62,7 +70,7 @@ class ProductPackageController extends Controller
                 'total' => $request->input('total'),
                 'discount' => $request->input('discount'),
                 'description' => $request->input('description'),
-                'image' => $imagePath
+                'image' => $data['image']
             ]);
 
             return response()->json([
@@ -83,6 +91,14 @@ class ProductPackageController extends Controller
     {
         try {
             $package = ProductPackage::with('product')->where('id', $id)->first();
+
+            if (!$package) {
+                return response()->json([
+                    'error' => 'Package not found'
+                ], 404);
+            }
+
+            $package->image = asset('storage/' . $package->image);
 
             return response()->json([
                 'data' => $package
@@ -115,20 +131,21 @@ class ProductPackageController extends Controller
                 'total' => 'nullable',
                 'discount' => 'nullable',
                 'description' => 'required|string',
-                'image' => 'required|image|mimes:jpg,jpeg,png,svg|max:2048'
+                'image' => 'required|string'
             ]);
 
             $package = ProductPackage::findOrFail($id);
 
-            if ($request->hasFile('image')) {
-                if ($package->image && Storage::disk('public')->exists($package->image)) {
-                    Storage::disk('public')->delete($package->image);
+            if (isset($validatedData['image'])) {
+                $relativePath = $this->saveImage($validatedData['image']);
+                $validatedData['image'] = $relativePath;
+
+                if ($package->image) {
+                    $absolutePath = public_path($package->image);
+                    File::delete($absolutePath);
                 }
-
-                $imagePath = $request->file('image')->store('packages', 'public');
-                $validatedData['image'] = $imagePath;
+            
             }
-
             $package->update($validatedData);
 
             return response()->json([
@@ -160,5 +177,45 @@ class ProductPackageController extends Controller
                 'error' => $ex->getMessage()
             ], 500);
         }
+    }
+
+    private function saveImage($image) 
+    {
+        // check if image is valid base64 string
+        if (preg_match('/^data:image\/(\w+);base64,/', $image, $type)) {
+
+            $image = substr($image, strpos($image, ',') + 1);
+
+            // get file extension
+            $type = strtolower($type[1]); // jpg, png, gif
+
+            // check if file is an image
+            if (!in_array($type, ['jpg', 'jpeg', 'gif', 'png'])) {
+                throw new \Exception(('invalid image type'));
+            }
+            $image = str_replace(' ', '+', $image);
+            $image = base64_decode($image);
+
+            if ($image === false) {
+                throw new \Exception('base64_decode failed');
+            }
+        } else {
+            throw new \Exception('did not match data URI with image data');
+        }
+        
+        // correct path: storage/app/public/hospitals
+        $fileName = Str::random() . '.' . $type;
+        $relativePath = 'packages/' . $fileName;
+        $storagePath = storage_path('app/public/' . $relativePath);
+
+        // make sure the directory exists
+        if (!File::exists(dirname($storagePath))) {
+            File::makeDirectory(dirname($storagePath), 0755, true);
+        }
+
+        file_put_contents($storagePath, $image);
+
+        // return 'storage/' . $relativePath;
+        return $relativePath;
     }
 }
