@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ClientTypeController;
 use App\Http\Controllers\Api\CountryController;
 use App\Http\Controllers\Api\CurrencyController;
 use App\Http\Controllers\Api\DocumentController;
+use App\Http\Controllers\Api\DocumentTypeController;
 use App\Http\Controllers\Api\FleetController;
 use App\Http\Controllers\Api\HospitalController;
 use App\Http\Controllers\Api\InquiryController;
@@ -57,6 +58,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Documents
     Route::resource('/documents', DocumentController::class);
+
+    // Document Type
+    Route::resource('/documenttypes', DocumentTypeController::class);
 
     // Inquiry
     Route::resource('/inquiries', InquiryController::class);
