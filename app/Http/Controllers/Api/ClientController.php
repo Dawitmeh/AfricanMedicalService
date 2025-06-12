@@ -19,7 +19,7 @@ class ClientController extends Controller
     public function index()
     {
         try {
-            $clients = Client::with('user')->get();
+            $clients = Client::with('user', 'userType')->get();
 
             $clients->transform(function ($client) {
                 $client->image = asset('storage/' . $client->image);
@@ -116,7 +116,7 @@ class ClientController extends Controller
     public function show(string $id)
     {
         try {
-            $client = Client::with('user')->where('id', $id)->first();
+            $client = Client::with('user', 'userType')->where('id', $id)->first();
 
             if (!$client) {
                 return response()->json([
