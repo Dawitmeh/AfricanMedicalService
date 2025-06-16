@@ -134,7 +134,9 @@ class FleetController extends Controller
                 'capacity' => 'required',
                 'classification' => 'required',
                 'icon' => 'nullable|string',
-                'description' => 'required|string'
+                'description' => 'required|string',
+                'Active' => 'nullable',
+                'Available' => 'nullable'
             ]);
 
             $fleet = Fleet::findOrFail($id);
