@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use Exception;
 use App\Models\Country;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 
 class CountryController extends Controller
@@ -50,22 +52,23 @@ class CountryController extends Controller
     public function store(Request $request)
     {
         try {
-            $request->validate([
+            $data = $request->validate([
                 'name' => 'required',
                 'code' => 'required',
-                'flag' => 'required|image|mimes:jpg,jpeg,png,svg|max:2048'
+                'flag' => 'required|string'
             ]);
 
             // Handle image upload
-            if ($request->hasFile('flag')) {
-                $flagPath = $request->file('flag')->store('flags', 'public'); // stores in storage/app/public/flags
+            if ($data['flag']) {
+                $relativePath = $this->saveImage($data['flag']);
+                $data['flag'] = $relativePath;
             }
 
             // Save the data including image path
             $country = Country::create([
                 'name' => $request->input('name'),
                 'code' => $request->input('code'),
-                'flag' => $flagPath ?? null,
+                'flag' => $data['flag'] ?? null,
             ]);
 
             return response()->json([
@@ -127,24 +130,23 @@ class CountryController extends Controller
             $validatedData = $request->validate([
                 'name' => 'required|string|max:255',
                 'code' => 'required|string|max:10',
-                'flag' => 'nullable|image|mimes:jpg,jpeg,png,svg|max:2048',
+                'flag' => 'nullable|string',
             ]);
 
             // Find the country
             $country = Country::findOrFail($id);
 
             // Handle flag upload if present
-            if ($request->hasFile('flag')) {
-                // Delete the old image if it exists
-                if ($country->flag && Storage::disk('public')->exists($country->flag)) {
-                    Storage::disk('public')->delete($country->flag);
+            if (isset($validatedData['flag'])) {
+                $relativePath = $this->saveImage($validatedData['flag']);
+                $validatedData['flag'] = $relativePath;
+
+                // if there is an old image, delete it
+                if ($country->flag) {
+                    $absolutePath = public_path($country->flag);
+                    File::delete($absolutePath);
                 }
-
-                // Store the new image
-                $flagPath = $request->file('flag')->store('flags', 'public');
-                $validatedData['flag'] = $flagPath;
             }
-
             // Update the country with validated data
             $country->update($validatedData);
 
@@ -179,5 +181,45 @@ class CountryController extends Controller
                 'error' => $ex->getMessage()
             ], 500);
         }
+    }
+
+    private function saveImage($image) 
+    {
+        // check if image is valid base64 string
+        if (preg_match('/^data:image\/(\w+);base64,/', $image, $type)) {
+
+            $image = substr($image, strpos($image, ',') + 1);
+
+            // get file extension
+            $type = strtolower($type[1]); // jpg, png, gif
+
+            // check if file is an image
+            if (!in_array($type, ['jpg', 'jpeg', 'gif', 'png'])) {
+                throw new \Exception(('invalid image type'));
+            }
+            $image = str_replace(' ', '+', $image);
+            $image = base64_decode($image);
+
+            if ($image === false) {
+                throw new \Exception('base64_decode failed');
+            }
+        } else {
+            throw new \Exception('did not match data URI with image data');
+        }
+        
+        // correct path: storage/app/public/hospitals
+        $fileName = Str::random() . '.' . $type;
+        $relativePath = 'countries/' . $fileName;
+        $storagePath = storage_path('app/public/' . $relativePath);
+
+        // make sure the directory exists
+        if (!File::exists(dirname($storagePath))) {
+            File::makeDirectory(dirname($storagePath), 0755, true);
+        }
+
+        file_put_contents($storagePath, $image);
+
+        // return 'storage/' . $relativePath;
+        return $relativePath;
     }
 }

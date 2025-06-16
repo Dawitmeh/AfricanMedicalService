@@ -10,8 +10,10 @@ use App\Http\Controllers\Api\DocumentTypeController;
 use App\Http\Controllers\Api\FleetController;
 use App\Http\Controllers\Api\HospitalController;
 use App\Http\Controllers\Api\InquiryController;
+use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ProductPackageController;
+use App\Http\Controllers\Api\RolesController;
 use App\Http\Controllers\Api\StaffController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -64,5 +66,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Inquiry
     Route::resource('/inquiries', InquiryController::class);
+
+    // Roles & Permissions
+    Route::resource('/roles', RolesController::class);
+
+    Route::resource('/permission', PermissionController::class);
+
+    Route::get('/roles/{roleId}/give-permissions', [RolesController::class, 'addPermissionToRole']);
+    Route::put('/roles/{roleId}/give-permissions', [RolesController::class, 'updatePermissionToRole']);
 
 });

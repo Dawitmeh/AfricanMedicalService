@@ -14,4 +14,12 @@ class Country extends Model
         'code',
         'flag'
     ];
+
+    protected $appends = ['flag_url'];
+
+
+    public function getFlagUrlAttribute()
+    {
+        return asset('storage/' . $this->flag); // adjust path if needed
+    }
 }

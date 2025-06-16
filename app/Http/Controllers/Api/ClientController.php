@@ -160,7 +160,7 @@ class ClientController extends Controller
                 'last_name' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
                 'phone' => 'required|max:15|unique:users,phone,' . $user->id,
-                'password' => 'required|string|confirmed',
+                'password' => 'required|string',
                 'type_id' => 'nullable|exists:client_types,id',
                 'age' => 'required',
                 'image' => 'nullable|string',
@@ -199,7 +199,7 @@ class ClientController extends Controller
                     'phone' => $request->phone,
                     'country_code' => $request->country_code,
                     'age' => $request->age,
-                    'image' => $data['image'] ?? $client->image,
+                    'image' => $validatedData['image'] ?? $client->image,
                     'type_id' => $request->type_id,
                     'password' => $request->filled('password') ? Hash::make($request->password) : $client->password
                 ]);
