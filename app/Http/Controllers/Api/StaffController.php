@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use App\Models\User;
 use Exception;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 
 class StaffController extends Controller
@@ -17,7 +19,7 @@ class StaffController extends Controller
     {
         try {
 
-            $staffs = User::where('userType', 'admin')->get();
+            $staffs = User::where('userType', 'admin')->with('roles')->get();
 
             return response()->json([
                 'data' => $staffs
@@ -50,13 +52,15 @@ class StaffController extends Controller
                 'email' => 'required|string|email|unique:users',
                 'phone' => 'required|string|unique:users',
                 'password' => 'required|string|confirmed',
-                'country_code' => 'required'
+                'country_code' => 'required',
+                'role' => 'required|array'
             ],  [
                 'email.unique' => 'The email has already been taken',
                 'phone.unique' => 'The phone has already been taken',
                 'password.confirmed' => 'The password confirmation does not match'
             ]);
 
+            $roles = $request->input('role');
             $rawPhone = ltrim($request->phone, '0');
             $phone = $request->country_code . $rawPhone;
 
@@ -68,6 +72,18 @@ class StaffController extends Controller
                 'userType' => 'admin',
                 'password' => Hash::make($request->password)
             ]);
+
+             if ($staff) {
+                // Assign each role separately for both guards
+                foreach ($roles as $roleName) {
+                    // First, ensure the roles exist for each guard
+                    // $roleForWeb = Role::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']);
+                    $roleForApi = Role::firstOrCreate(['name' => $roleName, 'guard_name' => 'api']);
+
+                    // $staff->assignRole($roleForWeb);
+                    $staff->assignRole($roleForApi);
+                }
+            }
 
             return response()->json([
                 'Message' => 'Client registered successfully', 
@@ -88,7 +104,7 @@ class StaffController extends Controller
     public function show(string $id)
     {
         try {
-            $staff = User::where('userType', 'admin')->where('id', $id)->first();
+            $staff = User::where('userType', 'admin')->with('roles')->where('id', $id)->first();
 
             return response()->json([
                 'data' => $staff
@@ -116,10 +132,20 @@ class StaffController extends Controller
         try {
             $data = $request->validate([
                 'name' => 'required|string|max:255',
-                'email' => 'required|string|email|unique:users',
-                'phone' => 'required|string|unique:users',
-                'password' => 'required|string',
-                'country_code' => 'required'
+                'email' => [
+                    'required',
+                    'string',
+                    'email',
+                    Rule::unique('users')->ignore($id),
+                ],
+                'phone' => [
+                    'required',
+                    'string',
+                    Rule::unique('users')->ignore($id),
+                ],
+                'password' => 'nullable|string',
+                'country_code' => 'required',
+                'role' => 'nullable|array'
             ], [
                 'email.unique' => 'The email has already been taken',
                 'phone.unique' => 'The phone has already been taken',
@@ -128,7 +154,30 @@ class StaffController extends Controller
 
             $staff = User::findOrFail($id);
 
+            // Format phone number
+            $rawPhone = ltrim($request->phone, '0');
+            $data['phone'] = $request->country_code . $rawPhone;
+
+            // Handle optional password update
+            if (!empty($request->password)) {
+                $data['password'] = Hash::make($request->password);
+            } else {
+                unset($data['password']);
+            }
+
             $staff->update($data);
+
+            // Update roles if provided
+            if ($request->has('role')) {
+                // Remove all existing roles and assign new ones with the correct guard
+                $staff->syncRoles([]); // Clear existing roles
+
+                foreach ($request->role as $roleName) {
+                    $role = Role::firstOrCreate(['name' => $roleName, 'guard_name' => 'api']);
+                    $staff->assignRole($role);
+                }
+            }
+
 
             return response()->json([
                 'data' => $staff

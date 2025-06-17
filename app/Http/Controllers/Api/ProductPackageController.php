@@ -136,16 +136,27 @@ class ProductPackageController extends Controller
 
             $package = ProductPackage::findOrFail($id);
 
-            if (isset($validatedData['image'])) {
+            // if (isset($validatedData['image'])) {
+            //     $relativePath = $this->saveImage($validatedData['image']);
+            //     $validatedData['image'] = $relativePath;
+
+            //     if ($package->image) {
+            //         $absolutePath = public_path($package->image);
+            //         File::delete($absolutePath);
+            //     }
+            // }
+            if (isset($validatedData['image']) && Str::startsWith($validatedData['image'], 'data:image')) {
                 $relativePath = $this->saveImage($validatedData['image']);
                 $validatedData['image'] = $relativePath;
 
                 if ($package->image) {
-                    $absolutePath = public_path($package->image);
+                    $absolutePath = public_path('storage/' . $package->image);
                     File::delete($absolutePath);
                 }
-            
+            } else {
+                unset($validatedData['image']);
             }
+
             $package->update($validatedData);
 
             return response()->json([

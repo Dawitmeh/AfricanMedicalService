@@ -7,6 +7,8 @@ use App\Models\User;
 use App\Models\Client;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
@@ -60,7 +62,7 @@ class ClientController extends Controller
                 'type_id' => 'nullable|exists:client_types,id',
                 'age' => 'required',
                 'image' => 'nullable|string',
-                'country_code' => 'required',
+                'country_code' => 'required'
             ], [
                 'email.unique' => 'The email has already been taken',
                 'phone.unique' => 'The phone has already been taken',
@@ -78,6 +80,10 @@ class ClientController extends Controller
                 'userType' => 'client',
                 'password' => Hash::make($request->password)
             ]);
+
+           
+
+            
 
             if (isset($data['image'])) {
                 $relativePath = $this->saveImage($data['image']);
@@ -158,14 +164,25 @@ class ClientController extends Controller
             $validatedData = $request->validate([
                 'first_name' => 'required|string|max:255',
                 'last_name' => 'required|string|max:255',
-                'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-                'phone' => 'required|max:15|unique:users,phone,' . $user->id,
+                'email' => [
+                    'required',
+                    'string',
+                    'email',
+                    Rule::unique('clients')->ignore($id),
+                ],
+                'phone' => [
+                    'required',
+                    'string',
+                    Rule::unique('clients')->ignore($id),
+                ],
                 'password' => 'required|string',
                 'type_id' => 'nullable|exists:client_types,id',
                 'age' => 'required',
                 'image' => 'nullable|string',
                 'country_code' => 'required',
+                'status' => 'nullable'
             ], [
+                
                 'email.unique' => 'The email has already been taken',
                 'phone.unique' => 'The phone has already been taken',
                 'password.confirmed' => 'The password confirmation does not match'
@@ -182,16 +199,29 @@ class ClientController extends Controller
             ]);
 
             // Handle image
-            if (isset($validatedData['image'])) {
-                $relativePath = $this->saveImage($validatedData['image']);
-                $validatedData['image'] = $relativePath;
+            // if (isset($validatedData['image'])) {
+            //     $relativePath = $this->saveImage($validatedData['image']);
+            //     $validatedData['image'] = $relativePath;
 
-                if ($client->image) {
-                    $absolutePath = public_path($client->image);
-                    File::delete($absolutePath);
-                }
+            //     if ($client->image) {
+            //         $absolutePath = public_path($client->image);
+            //         File::delete($absolutePath);
+            //     }
+            // }
+            if (isset($validatedData['image']) && Str::startsWith($validatedData['image'], 'data:image')) {
+                    $relativePath = $this->saveImage($validatedData['image']);
+                    $validatedData['image'] = $relativePath;
 
-                $client->update([
+                    if ($client->image) {
+                        $absolutePath = public_path('storage/' . $client->image);
+                        File::delete($absolutePath);
+                    }
+            } else {
+                unset($validatedData['image']);
+            }
+
+
+             $client->update([
                     'first_name' => $request->first_name,
                     'user_id' => $user->id,
                     'last_name' => $request->last_name,
@@ -201,6 +231,7 @@ class ClientController extends Controller
                     'age' => $request->age,
                     'image' => $validatedData['image'] ?? $client->image,
                     'type_id' => $request->type_id,
+                    'status' => $request->status,
                     'password' => $request->filled('password') ? Hash::make($request->password) : $client->password
                 ]);
 
@@ -208,7 +239,6 @@ class ClientController extends Controller
                     'data' => $client,
                     'user' => $user
                 ], 200);
-            }
         } catch (Exception $ex) {
             return response()->json([
                 'error' => $ex->getMessage()

@@ -141,14 +141,25 @@ class FleetController extends Controller
 
             $fleet = Fleet::findOrFail($id);
 
-            if (isset($validatedData['icon'])) {
+            // if (isset($validatedData['icon'])) {
+            //     $relativePath = $this->saveImage($validatedData['icon']);
+            //     $validatedData['icon'] = $relativePath;
+
+            //     if ($fleet->icon) {
+            //         $absolutePath = public_path($fleet->icon);
+            //         File::delete($absolutePath);
+            //     }
+            // }
+            if (isset($validatedData['icon']) && Str::startsWith($validatedData['icon'], 'data:image')) {
                 $relativePath = $this->saveImage($validatedData['icon']);
                 $validatedData['icon'] = $relativePath;
 
                 if ($fleet->icon) {
-                    $absolutePath = public_path($fleet->icon);
+                    $absolutePath = public_path('storage/' . $fleet->icon);
                     File::delete($absolutePath);
                 }
+            } else {
+                unset($validatedData['icon']);
             }
 
             $fleet->update($validatedData);

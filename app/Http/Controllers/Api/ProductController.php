@@ -56,7 +56,8 @@ class ProductController extends Controller
                 'cost' => 'nullable',
                 'price' => 'nullable',
                 'image' => 'required|string',
-                'description' => 'required|string'
+                'description' => 'required|string',
+                'active' => 'nullable'
             ]);
 
             if (isset($data['image'])) {
@@ -71,6 +72,7 @@ class ProductController extends Controller
                 'price' => $request->input('price'),
                 'description' => $request->input('description'),
                 'image' => $data['image'],
+                'active' => $request->input('active')
             ]);
 
             return response()->json([
@@ -132,19 +134,31 @@ class ProductController extends Controller
                 'cost' => 'nullable',
                 'price' => 'nullable',
                 'image' => 'nullable|string',
-                'description' => 'required|string'
+                'description' => 'required|string',
+                'active' => 'nullable'
             ]);
 
             $product = Product::findOrFail($id);
 
-            if (isset($validatedData['image'])) {
+            // if (isset($validatedData['image'])) {
+            //     $relativePath = $this->saveImage($validatedData['image']);
+            //     $validatedData['image'] = $relativePath;
+
+            //     if ($product->image) {
+            //         $absolutePath = public_path($product->image);
+            //         File::delete($absolutePath);
+            //     }
+            // }
+            if (isset($validatedData['image']) && Str::startsWith($validatedData['image'], 'data:image')) {
                 $relativePath = $this->saveImage($validatedData['image']);
                 $validatedData['image'] = $relativePath;
 
                 if ($product->image) {
-                    $absolutePath = public_path($product->image);
+                    $absolutePath = public_path('storage/' . $product->image);
                     File::delete($absolutePath);
                 }
+            } else {
+                unset($validatedData['image']);
             }
 
             $product->update($validatedData);

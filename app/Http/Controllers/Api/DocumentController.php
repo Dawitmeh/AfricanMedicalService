@@ -149,79 +149,79 @@ class DocumentController extends Controller
      * Update the specified resource in storage.
      */
    public function update(Request $request, $id)
-{
-    try {
-        $document = Document::findOrFail($id);
+    {
+        try {
+            $document = Document::findOrFail($id);
 
-        $rules = [
-            'client_id' => 'sometimes|required|exists:clients,id',
-            'type_id' => 'sometimes|required|exists:document_types,id',
-            'document' => 'sometimes|required|string', // base64 string
-        ];
+            $rules = [
+                'client_id' => 'sometimes|required|exists:clients,id',
+                'type_id' => 'sometimes|required|exists:document_types,id',
+                'document' => 'nullable', // base64 string
+            ];
 
-        $validator = Validator::make($request->all(), $rules);
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // If type_id is being updated, retrieve new DocumentType
-        $documentType = $request->has('type_id')
-            ? DocumentType::findOrFail($request->input('type_id'))
-            : $document->documentType;
-
-        if ($request->has('document')) {
-            $base64String = $request->input('document');
-
-            if (preg_match('/^data:(.*?);base64,(.*)$/', $base64String, $matches)) {
-                $mimeType = $matches[1];
-                $base64Data = base64_decode($matches[2]);
-            } else {
-                return response()->json(['error' => 'Invalid base64 format.'], 422);
+            $validator = Validator::make($request->all(), $rules);
+            if ($validator->fails()) {
+                return response()->json(['errors' => $validator->errors()], 422);
             }
 
-            $expectedMime = [
-                'pdf' => 'application/pdf',
-                'jpg' => 'image/jpeg',
-                'jpeg' => 'image/jpeg',
-                'png' => 'image/png',
-            ][$documentType->format] ?? null;
+            // If type_id is being updated, retrieve new DocumentType
+            $documentType = $request->has('type_id')
+                ? DocumentType::findOrFail($request->input('type_id'))
+                : $document->documentType;
 
-            if (!$expectedMime || $mimeType !== $expectedMime) {
-                return response()->json(['error' => 'File format does not match expected type.'], 422);
+            if ($request->filled('document')) {
+                $base64String = $request->input('document');
+
+                if (preg_match('/^data:(.*?);base64,(.*)$/', $base64String, $matches)) {
+                    $mimeType = $matches[1];
+                    $base64Data = base64_decode($matches[2]);
+                } else {
+                    return response()->json(['error' => 'Invalid base64 format.'], 422);
+                }
+
+                $expectedMime = [
+                    'pdf' => 'application/pdf',
+                    'jpg' => 'image/jpeg',
+                    'jpeg' => 'image/jpeg',
+                    'png' => 'image/png',
+                ][$documentType->format] ?? null;
+
+                if (!$expectedMime || $mimeType !== $expectedMime) {
+                    return response()->json(['error' => 'File format does not match expected type.'], 422);
+                }
+
+                // Delete old file if exists
+                if ($document->document && Storage::disk('public')->exists($document->document)) {
+                    Storage::disk('public')->delete($document->document);
+                }
+
+                $filename = Str::uuid() . '.' . $documentType->format;
+                $path = 'documents/' . $filename;
+                Storage::disk('public')->put($path, $base64Data);
+
+                $document->document = $path;
             }
 
-            // Delete old file if exists
-            if ($document->document && Storage::disk('public')->exists($document->document)) {
-                Storage::disk('public')->delete($document->document);
+            // Update other fields if provided
+            if ($request->has('client_id')) {
+                $document->client_id = $request->client_id;
+            }
+            if ($request->has('type_id')) {
+                $document->type_id = $request->type_id;
             }
 
-            $filename = Str::uuid() . '.' . $documentType->format;
-            $path = 'documents/' . $filename;
-            Storage::disk('public')->put($path, $base64Data);
+            $document->save();
 
-            $document->document = $path;
+            return response()->json(['data' => $document], 200);
+
+        } catch (Exception $ex) {
+            Log::error('Document update failed: ' . $ex->getMessage());
+            return response()->json([
+                'error' => 'Failed to update document.',
+                'message' => $ex->getMessage()
+            ], 500);
         }
-
-        // Update other fields if provided
-        if ($request->has('client_id')) {
-            $document->client_id = $request->client_id;
-        }
-        if ($request->has('type_id')) {
-            $document->type_id = $request->type_id;
-        }
-
-        $document->save();
-
-        return response()->json(['data' => $document], 200);
-
-    } catch (Exception $ex) {
-        Log::error('Document update failed: ' . $ex->getMessage());
-        return response()->json([
-            'error' => 'Failed to update document.',
-            'message' => $ex->getMessage()
-        ], 500);
     }
-}
 
     /**
      * Remove the specified resource from storage.

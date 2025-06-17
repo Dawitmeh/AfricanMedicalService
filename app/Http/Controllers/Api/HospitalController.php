@@ -139,16 +139,17 @@ class HospitalController extends Controller
 
             $hospital = Hospital::findOrFail($id);
 
-            
-            if (isset($validatedData['image'])) {
+          
+            if (isset($validatedData['image']) && Str::startsWith($validatedData['image'], 'data:image')) {
                 $relativePath = $this->saveImage($validatedData['image']);
                 $validatedData['image'] = $relativePath;
 
-                // if there is an old image, delete it
                 if ($hospital->image) {
-                    $absolutePath = public_path($hospital->image);
+                    $absolutePath = public_path('storage/' . $hospital->image);
                     File::delete($absolutePath);
                 }
+            }  else {
+                unset($validatedData['image']);
             }
 
             $hospital->update($validatedData);
